@@ -108,8 +108,6 @@
     <ClCompile Include="Plugin\init.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Helpers\macros.h" />
-    <ClInclude Include="includes.h" />
     <ClInclude Include="Plugin\init.h" />
     <ClInclude Include="Plugin\plugin.h" />
   </ItemGroup>

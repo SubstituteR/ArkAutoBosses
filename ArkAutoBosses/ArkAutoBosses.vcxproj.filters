@@ -7,8 +7,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Helpers\macros.h" />
-    <ClInclude Include="includes.h" />
     <ClInclude Include="Plugin\init.h">
       <Filter>Plugin</Filter>
     </ClInclude>
