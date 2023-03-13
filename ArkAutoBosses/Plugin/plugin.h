@@ -47,8 +47,10 @@ namespace ArkAutoBosses
 	{
 	public:
 		std::uint32_t chibiLevels = 0;
-		std::unordered_set<DefeatedBoss,DefeatedBoss::Hash> defeatedBosses = {};
+		std::unordered_set<DefeatedBoss, DefeatedBoss::Hash> defeatedBosses = {};
 		std::unordered_set<std::string> additionalEngrams = {};
+		bool unlockExplorerNotes = false;
+		std::unordered_set<std::string> generalizedAchievementTagGrants = {};
 	};
 
 	static void from_json(const json& json, DefeatedBoss& defeatedBoss)
@@ -63,6 +65,8 @@ namespace ArkAutoBosses
 		json.at("ChibiLevels").get_to(config.chibiLevels);
 		json.at("DefeatedBosses").get_to(config.defeatedBosses);
 		json.at("AdditionalEngrams").get_to(config.additionalEngrams);
+		json.at("UnlockExplorerNotes").get_to(config.unlockExplorerNotes);
+		json.at("GeneralizedAchievementTagGrants").get_to(config.generalizedAchievementTagGrants);
 	}
 
 	class Plugin
@@ -105,24 +109,6 @@ namespace ArkAutoBosses
 			Log::GetLog()->info("Cached {} total unlocks.\n", unlocksCache.size());
 		}
 
-
-		static auto SetChibi(AShooterPlayerController* playerController, int value) -> void
-		{
-			AShooterCharacter* playerPawn = playerController->LastControlledPlayerCharacterField().Get();
-			UPrimalPlayerData* playerData = playerController->GetShooterPlayerState()->MyPlayerDataField();
-
-			if (!playerPawn || !playerData) return;
-
-			static UProperty* prop = playerData->FindProperty(FName("NumChibiLevelUpsData", EFindName::FNAME_Find));
-			static UFunction* setChibiFunction = playerPawn->FindFunctionChecked(FName("SetNumChibiLevelUps", EFindName::FNAME_Add));
-
-			if (!prop) return;
-
-			playerPawn->ProcessEvent(setChibiFunction, &value);
-
-			prop->Set(playerData, value);
-			playerData->SavePlayerData(ArkApi::GetApiUtils().GetWorld());
-		}
 		static auto DefeatBoss(AShooterPlayerController* playerController, const std::string& boss, const std::uint32_t difficulty) -> void
 		{
 			UPrimalPlayerData* playerData = playerController->GetShooterPlayerState()->MyPlayerDataField();
@@ -142,6 +128,25 @@ namespace ArkAutoBosses
 			playerData->ProcessEvent(defeatedBossFunction, &parameters);
 			playerData->SavePlayerData(ArkApi::GetApiUtils().GetWorld());
 		}
+		
+		static auto ProcessNewCharacter(AShooterPlayerController* playerController) -> void
+		{
+			static FString implantPath = FString("Blueprint'/Game/PrimalEarth/CoreBlueprints/Items/Notes/PrimalItem_StartingNote.PrimalItem_StartingNote'");
+			static UClass* implantClass = UVictoryCore::BPLoadClass(&implantPath);
+			
+			AShooterCharacter* playerPawn = playerController->LastControlledPlayerCharacterField().Get();
+
+			if (!implantClass || !playerPawn || !playerPawn->MyInventoryComponentField()) return;
+
+			UPrimalInventoryComponent* playerInventory = playerPawn->MyInventoryComponentField();
+			UPrimalItem* playerImplant = playerInventory->BPGetItemOfTemplate(implantClass, true, false, false, false, false, false, false, false, false, false);
+			
+			if (playerImplant)
+				playerInventory->RemoveItem(&playerImplant->ItemIDField(), false, false, true, false);
+			UPrimalItem::AddNewItem(implantClass, playerInventory, false, true, 0.f, false, 1, false, 0.f, false, nullptr, 0.f, false, true);
+
+		}
+		
 		static auto UnlockEngram(AShooterPlayerController* playerController, UClass* engram) -> void
 		{
 			AShooterPlayerState* playerState = playerController->GetShooterPlayerState();
@@ -163,24 +168,61 @@ namespace ArkAutoBosses
 				DefeatBoss(playerController, boss.Boss, boss.Difficulty);
 		}
 
+		static auto ProcessChibi(AShooterPlayerController* playerController, UPrimalPlayerData* playerData) -> void
+		{
+			if (!playerData) return;
+			playerData->SetChibiLevels(config.chibiLevels, playerController);
+
+		}
+
+		static auto ProcessExplorerNotes(UPrimalPlayerData* playerData, AShooterCharacter* playerCharacter)
+		{
+			if (!config.unlockExplorerNotes) return;
+			if (playerData && playerData->MyDataField() && playerData->MyDataField()->MyPersistentCharacterStatsField())
+				playerData->MyDataField()->MyPersistentCharacterStatsField()->bHasUnlockedAllExplorerNotes() = true;
+			if (playerCharacter)
+			{
+				playerCharacter->BPUnlockedAllExplorerNotes();
+				playerCharacter->ForceReplicateNow(false, false);
+			}
+		}
+
+		static auto ProcessAchievementTagGrants(AShooterPlayerController* playerController, UPrimalPlayerData* playerData)
+		{
+			if (!playerData) return;
+			for (auto&& grant : config.generalizedAchievementTagGrants)
+				playerData->GrantGeneralizedAchievementTag(FName(grant.c_str(), EFindName::FNAME_Add), playerController);
+			playerData->SavePlayerData(ArkApi::GetApiUtils().GetWorld());
+		}
+
+		static auto ProcessExtraLevels(AShooterPlayerController* playerController)
+		{
+			UPrimalPlayerData* playerData = playerController->GetShooterPlayerState()->MyPlayerDataField();
+			AShooterCharacter* playerCharacter = playerController->LastControlledPlayerCharacterField().Get();
+			ProcessChibi(playerController, playerData);
+			ProcessExplorerNotes(playerData, playerCharacter);
+			ProcessAchievementTagGrants(playerController, playerData);
+		}
+
 		static auto ProcessUnlocks(AShooterPlayerController* playerController) -> void
 		{
-			Log::GetLog()->info("Processing Unlocks for {}.\n", ArkApi::IApiUtils::GetSteamIdFromController(playerController));
+			Log::GetLog()->debug("Processing Unlocks for {}.\n", ArkApi::IApiUtils::GetSteamIdFromController(playerController));
 			ProcessBosses(playerController);
 			ProcessEngrams(playerController);
-			SetChibi(playerController, config.chibiLevels);
+			ProcessExtraLevels(playerController);
 		}
 
 		static auto onStartNewShooterPlayer(AShooterGameMode* _this, APlayerController* newPlayer, bool forceCreateNewPlayerData, bool isFromLogin, const FPrimalPlayerCharacterConfigStruct& characterConfig, UPrimalPlayerData* playerData)
 		{
 			AShooterPlayerController* playerController = static_cast<AShooterPlayerController*>(newPlayer);
-			if (!isFromLogin || playerData) //New Character or Transfer
-			{
-				ProcessBosses(playerController); //Eagerly Unlock bosses for new characters and transfers.
-				playerController->ServerRestartPlayer();
-			}
 			StartNewShooterPlayer.original(_this, newPlayer, forceCreateNewPlayerData, isFromLogin, characterConfig, playerData);
-			ProcessUnlocks(playerController); //Ensures PlayerData isn't destroyed.
+
+			if (!playerController)
+				return;
+
+			ProcessUnlocks(playerController);
+			if (!isFromLogin && !playerData) //New Characters Logic.
+				ProcessNewCharacter(playerController);
 		}
 
 	public:

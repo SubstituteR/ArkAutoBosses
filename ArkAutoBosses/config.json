@@ -45,6 +45,11 @@
             "Boss": "King Titan",
             "Blueprint": "Blueprint'/Game/Extinction/Dinos/KingKaiju/KingKaiju_Character_BP_Alpha.KingKaiju_Character_BP_Alpha'",
             "Difficulty": 2
+        },
+        {
+            "Boss": "Gen2Rockwell",
+            "Blueprint": "Blueprint'/Game/Genesis2/Missions/ModularMission/FinalBattleAlt/Difficulties/Alpha/RockwellNode_Character_BP_Boss_Alpha.RockwellNode_Character_BP_Boss_Alpha'",
+            "Difficulty": 2
         }
     ],
     "AdditionalEngrams": [
@@ -52,5 +57,10 @@
         "Blueprint'/Game/PrimalEarth/CoreBlueprints/Weapons/PrimalItem_WeaponTekSword.PrimalItem_WeaponTekSword'",
         "Blueprint'/Game/Genesis2/Dinos/Exosuit/PrimalItem_Spawner_Exosuit.PrimalItem_Spawner_Exosuit'",
         "Blueprint'/Game/Genesis2/Dinos/SpaceDolphin/PrimalItemArmor_SpaceDolphinSaddle_Tek.PrimalItemArmor_SpaceDolphinSaddle_Tek'"
+    ],
+    "UnlockExplorerNotes": true,
+    "GeneralizedAchievementTagGrants": [
+        "Rune100",
+        "Rune200"
     ]
 }
